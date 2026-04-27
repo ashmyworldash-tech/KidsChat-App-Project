@@ -1,43 +1,103 @@
-<script>
-    const modelViewer = document.querySelector('#avatar');
-    const videoElement = document.getElementById('input_video');
-    const statusText = document.getElementById('status');
-    let cameraInstance = null; // This keeps track of the camera "engine"
+<!DOCTYPE html>
+<html>
+<head>
+    <title>KidsChat AI - Secure Face Sync</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
+    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+    
+    <style>
+        body { margin: 0; background: #121212; color: white; text-align: center; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        model-viewer { width: 100%; height: 65vh; background: radial-gradient(#333, #000); }
+        .container { padding: 20px; }
+        .status-box { margin-bottom: 20px; font-size: 1.2rem; font-weight: bold; color: #00d4ff; }
+        .button-group { display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; }
+        button { padding: 15px 35px; border-radius: 50px; border: none; font-weight: bold; cursor: pointer; transition: 0.3s; font-size: 1rem; }
+        .btn-start { background: #28a745; color: white; box-shadow: 0 4px 15px rgba(40, 167, 69, 0.4); }
+        .btn-stop { background: #dc3545; color: white; box-shadow: 0 4px 15px rgba(220, 53, 69, 0.4); }
+        button:hover { transform: scale(1.05); opacity: 0.9; }
+        #input_video { display: none; }
+    </style>
+</head>
+<body>
 
-    const faceMesh = new FaceMesh({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`});
-    faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.5 });
-    faceMesh.onResults(onResults);
+    <model-viewer id="avatar" src="lopoly_ryu.glb" shadow-intensity="1" camera-controls autoplay></model-viewer>
 
-    function onResults(results) {
-        if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) return;
-        const landmarks = results.multiFaceLandmarks[0];
-        const nose = landmarks[4];
-        const horizontalTurn = (nose.x - 0.5) * -90;
-        const verticalTilt = (nose.y - 0.5) * 60 + 75;
-        modelViewer.cameraOrbit = `${horizontalTurn}deg ${verticalTilt}deg auto`;
-    }
+    <div class="container">
+        <div id="status" class="status-box">System Standby</div>
+        
+        <div class="button-group">
+            <button class="btn-start" onclick="startApp()">🚀 Activate Sync</button>
+            <button class="btn-stop" onclick="stopApp()">🔒 Stop Camera</button>
+        </div>
+        
+        <p style="color: #888; margin-top: 20px;">Safety First: Closing the camera physically cuts the connection.</p>
+    </div>
 
-    async function startApp() {
-        statusText.innerText = "Camera Starting...";
-        cameraInstance = new Camera(videoElement, {
-            onFrame: async () => { await faceMesh.send({image: videoElement}); },
-            width: 640, height: 480
-        });
-        cameraInstance.start();
-        statusText.innerText = "✨ AI Syncing... (Camera is ON)";
-    }
+    <video id="input_video" playsinline></video>
 
-    function stopApp() {
-        if (cameraInstance) {
-            // This stops the AI engine
-            cameraInstance.stop(); 
-            // This physically turns off the camera hardware
-            const stream = videoElement.srcObject;
-            const tracks = stream.getTracks();
-            tracks.forEach(track => track.stop());
+    <script>
+        const modelViewer = document.querySelector('#avatar');
+        const videoElement = document.getElementById('input_video');
+        const statusText = document.getElementById('status');
+        let cameraInstance = null;
+
+        // Setup AI Brain
+        const faceMesh = new FaceMesh({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`});
+        faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.5 });
+        faceMesh.onResults(onResults);
+
+        // This runs every time the AI 'sees' a frame
+        function onResults(results) {
+            if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
+                statusText.innerText = "Searching for Face...";
+                return;
+            }
             
-            videoElement.srcObject = null;
-            statusText.innerText = "🔒 Camera Closed - Privacy Active";
+            statusText.innerText = "✨ AI Syncing Active";
+            const landmarks = results.multiFaceLandmarks[0];
+            const nose = landmarks[4];
+            
+            // Map movement to 3D rotation
+            const horizontalTurn = (nose.x - 0.5) * -90;
+            const verticalTilt = (nose.y - 0.5) * 60 + 75;
+            
+            modelViewer.cameraOrbit = `${horizontalTurn}deg ${verticalTilt}deg auto`;
         }
-    }
-</script>
+
+        // START Function
+        async function startApp() {
+            statusText.innerText = "Waking up Camera...";
+            try {
+                cameraInstance = new Camera(videoElement, {
+                    onFrame: async () => { await faceMesh.send({image: videoElement}); },
+                    width: 640, height: 480
+                });
+                await cameraInstance.start();
+            } catch (err) {
+                statusText.innerText = "Error: Camera Blocked";
+            }
+        }
+
+        // STOP Function
+        function stopApp() {
+            if (cameraInstance) {
+                cameraInstance.stop(); 
+                
+                // Physically cut the hardware stream
+                const stream = videoElement.srcObject;
+                if (stream) {
+                    const tracks = stream.getTracks();
+                    tracks.forEach(track => track.stop());
+                }
+                
+                videoElement.srcObject = null;
+                statusText.innerText = "🔒 Camera Fully Off";
+                
+                // Reset Avatar Position
+                modelViewer.cameraOrbit = `0deg 75deg auto`;
+            }
+        }
+    </script>
+</body>
+</html>
