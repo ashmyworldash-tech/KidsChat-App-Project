@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>KidsChat - Funny AI Popups</title>
+    <title>KidsChat - Group Mode</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
     <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
@@ -9,35 +9,39 @@
     <style>
         body { margin: 0; background: #f0f2f5; font-family: 'Comic Sans MS', sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         
+        /* User Profile Bar */
+        #user-bar { background: #075e54; color: white; padding: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; }
+        .user-tag { background: #128c7e; padding: 4px 10px; border-radius: 10px; font-weight: bold; }
+
         /* The Main Avatar View */
-        model-viewer#avatar { width: 100%; height: 30vh; background: white; }
+        model-viewer#avatar { width: 100%; height: 25vh; background: white; }
 
         /* The Chat Area */
-        #chat-box { flex-grow: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; background: #e5ddd5; position: relative; }
-        .message { padding: 10px 15px; border-radius: 15px; max-width: 70%; z-index: 1; }
-        .sent { align-self: flex-end; background: #dcf8c6; }
-        .received { align-self: flex-start; background: white; }
+        #chat-box { flex-grow: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 15px; background: #e5ddd5; }
+        
+        .msg-container { display: flex; flex-direction: column; position: relative; }
+        .message { padding: 10px 15px; border-radius: 15px; max-width: 75%; position: relative; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .user-name { font-size: 0.7rem; font-weight: bold; margin-bottom: 2px; color: #555; }
+        
+        .sent { align-self: flex-end; background: #dcf8c6; text-align: right; }
+        .received { align-self: flex-start; background: white; text-align: left; }
 
-        /* THE FUNNY POPUP STAGE */
-        #popup-stage {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 200px; height: 200px; pointer-events: none; z-index: 10; display: none;
+        /* POPUP ANIMATION STYLES */
+        .popup-avatar {
+            width: 80px; height: 80px; pointer-events: none;
+            position: absolute; top: -40px; right: 0; display: none;
         }
+        .sent .popup-avatar { right: 0; }
+        .received .popup-avatar { left: 0; }
 
-        /* Animation Styles */
-        .funny-spin { animation: spinMe 1s ease-in-out; display: block !important; }
-        .funny-grow { animation: growMe 1s ease-in-out; display: block !important; }
+        /* Animation Effects */
+        .animate-pop { display: block !important; animation: popAndSpin 1.2s ease-out forwards; }
 
-        @keyframes spinMe {
-            0% { transform: translate(-50%, -50%) scale(0) rotate(0deg); opacity: 0; }
-            50% { transform: translate(-50%, -50%) scale(1.5) rotate(360deg); opacity: 1; }
-            100% { transform: translate(-50%, -50%) scale(0) rotate(720deg); opacity: 0; }
-        }
-
-        @keyframes growMe {
-            0% { transform: translate(-50%, -100%) scale(0); opacity: 0; }
-            50% { transform: translate(-50%, -50%) scale(2.5); opacity: 1; }
-            100% { transform: translate(-50%, 0%) scale(0); opacity: 0; }
+        @keyframes popAndSpin {
+            0% { transform: scale(0) rotate(0deg); opacity: 0; }
+            30% { transform: scale(1.5) rotate(360deg); opacity: 1; }
+            70% { transform: scale(1.2) rotate(360deg); opacity: 1; }
+            100% { transform: scale(0) rotate(720deg); opacity: 0; }
         }
 
         .controls { padding: 15px; background: white; border-top: 1px solid #ddd; }
@@ -49,21 +53,27 @@
 </head>
 <body>
 
+    <div id="user-bar">
+        <span>Kids Group Chat</span>
+        <div id="current-user-display">Typing as: <span class="user-tag" id="user-name-label">Me</span></div>
+    </div>
+
     <model-viewer id="avatar" src="lopoly_ryu.glb" shadow-intensity="1" autoplay></model-viewer>
 
     <div id="chat-box">
-        <div id="popup-stage">
-            <model-viewer src="lopoly_ryu.glb" autoplay style="width:100%; height:100%"></model-viewer>
+        <div class="msg-container received">
+            <div class="user-name">System</div>
+            <div class="message">Type "WOW" or "LOL" to see the avatar pop up after your text!</div>
         </div>
-        <div class="message received">Type "SPIN" or "BIG" to see a funny popup!</div>
     </div>
 
     <div class="controls">
         <div class="input-row">
-            <input type="text" id="msg-input" placeholder="Type funny words...">
+            <input type="text" id="msg-input" placeholder="Type a message...">
             <button style="background:#007bff; color:white;" onclick="sendMessage()">Send</button>
         </div>
         <div style="display:flex; justify-content:center; gap:10px; margin-top:10px;">
+            <button style="background:#6c757d; color:white;" onclick="switchUser()">🔄 Switch User</button>
             <button style="background:#28a745; color:white;" onclick="startApp()">📹 Sync</button>
             <button style="background:#dc3545; color:white;" onclick="stopApp()">🔒 Stop</button>
         </div>
@@ -73,35 +83,54 @@
 
     <script>
         const chatBox = document.getElementById('chat-box');
-        const popupStage = document.getElementById('popup-stage');
         const msgInput = document.getElementById('msg-input');
         const videoElement = document.getElementById('input_video');
+        let currentUser = "Me";
+
+        function switchUser() {
+            currentUser = (currentUser === "Me") ? "Friend" : "Me";
+            document.getElementById('user-name-label').innerText = currentUser;
+        }
 
         function sendMessage() {
-            const text = msgInput.value.toUpperCase();
+            const text = msgInput.value;
             if (text.trim() === "") return;
 
-            // 1. Add Message
-            const msgDiv = document.createElement('div');
-            msgDiv.className = "message sent";
-            msgDiv.innerText = msgInput.value;
-            chatBox.appendChild(msgDiv);
+            // 1. Create Message Container
+            const container = document.createElement('div');
+            container.className = `msg-container ${currentUser === "Me" ? 'sent' : 'received'}`;
 
-            // 2. CHECK FOR FUNNY KEYWORDS
-            if (text.includes("SPIN")) {
-                showPopup("funny-spin");
-            } else if (text.includes("BIG")) {
-                showPopup("funny-grow");
+            // 2. Add Name Label
+            const nameLabel = document.createElement('div');
+            nameLabel.className = "user-name";
+            nameLabel.innerText = currentUser;
+
+            // 3. Add Message Bubble
+            const msgDiv = document.createElement('div');
+            msgDiv.className = "message";
+            msgDiv.innerText = text;
+
+            // 4. Add the HIDDEN POPUP AVATAR
+            const popup = document.createElement('div');
+            popup.className = "popup-avatar";
+            popup.innerHTML = `<model-viewer src="lopoly_ryu.glb" autoplay style="width:100%; height:100%"></model-viewer>`;
+
+            // 5. Assemble and Add to Chat
+            container.appendChild(nameLabel);
+            container.appendChild(msgDiv);
+            container.appendChild(popup);
+            chatBox.appendChild(container);
+
+            // 6. TRIGGER ANIMATION if keyword matches
+            const upperText = text.toUpperCase();
+            if (upperText.includes("WOW") || upperText.includes("LOL") || upperText.includes("FUNNY")) {
+                setTimeout(() => {
+                    popup.classList.add('animate-pop');
+                }, 300); // Small delay after text appears
             }
 
             msgInput.value = "";
             chatBox.scrollTop = chatBox.scrollHeight;
-        }
-
-        function showPopup(animationClass) {
-            popupStage.className = animationClass;
-            // Remove the class after 1 second so it can be played again
-            setTimeout(() => { popupStage.className = ""; }, 1000);
         }
 
         // --- Standard Sync Logic ---
