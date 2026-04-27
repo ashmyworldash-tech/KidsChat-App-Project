@@ -1,62 +1,43 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>KidsChat AI Sync</title>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
-    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
-    <style>
-        body { margin: 0; background: #222; color: white; text-align: center; font-family: Arial; }
-        model-viewer { width: 100%; height: 70vh; background: #333; border-bottom: 2px solid #444; }
-        .ui { padding: 20px; }
-        button { padding: 15px 40px; border-radius: 30px; border: none; background: #28a745; color: white; font-weight: bold; cursor: pointer; }
-    </style>
-</head>
-<body>
+<script>
+    const modelViewer = document.querySelector('#avatar');
+    const videoElement = document.getElementById('input_video');
+    const statusText = document.getElementById('status');
+    let cameraInstance = null; // This keeps track of the camera "engine"
 
-    <model-viewer id="avatar" src="lopoly_ryu.glb" shadow-intensity="1" camera-controls autoplay></model-viewer>
+    const faceMesh = new FaceMesh({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`});
+    faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.5 });
+    faceMesh.onResults(onResults);
 
-    <div class="ui">
-        <h2 id="status">Ready to Start</h2>
-        <button onclick="startApp()">🚀 Activate Avatar Sync</button>
-        <p>Tip: Once active, turn your head slowly to see the effect.</p>
-    </div>
+    function onResults(results) {
+        if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) return;
+        const landmarks = results.multiFaceLandmarks[0];
+        const nose = landmarks[4];
+        const horizontalTurn = (nose.x - 0.5) * -90;
+        const verticalTilt = (nose.y - 0.5) * 60 + 75;
+        modelViewer.cameraOrbit = `${horizontalTurn}deg ${verticalTilt}deg auto`;
+    }
 
-    <video id="input_video" style="display:none"></video>
+    async function startApp() {
+        statusText.innerText = "Camera Starting...";
+        cameraInstance = new Camera(videoElement, {
+            onFrame: async () => { await faceMesh.send({image: videoElement}); },
+            width: 640, height: 480
+        });
+        cameraInstance.start();
+        statusText.innerText = "✨ AI Syncing... (Camera is ON)";
+    }
 
-    <script>
-        const modelViewer = document.querySelector('#avatar');
-        const videoElement = document.getElementById('input_video');
-        const statusText = document.getElementById('status');
-
-        function onResults(results) {
-            if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) return;
+    function stopApp() {
+        if (cameraInstance) {
+            // This stops the AI engine
+            cameraInstance.stop(); 
+            // This physically turns off the camera hardware
+            const stream = videoElement.srcObject;
+            const tracks = stream.getTracks();
+            tracks.forEach(track => track.stop());
             
-            statusText.innerText = "✨ AI Syncing...";
-            const landmarks = results.multiFaceLandmarks[0];
-            
-            // Tracking the nose point (Landmark 4)
-            const nose = landmarks[4];
-            
-            // Convert nose movement to 3D rotation
-            const horizontalTurn = (nose.x - 0.5) * -90; // Left/Right
-            const verticalTilt = (nose.y - 0.5) * 60 + 75; // Up/Down
-            
-            modelViewer.cameraOrbit = `${horizontalTurn}deg ${verticalTilt}deg auto`;
+            videoElement.srcObject = null;
+            statusText.innerText = "🔒 Camera Closed - Privacy Active";
         }
-
-        const faceMesh = new FaceMesh({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`});
-        faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
-        faceMesh.onResults(onResults);
-
-        async function startApp() {
-            statusText.innerText = "Connecting Camera...";
-            const camera = new Camera(videoElement, {
-                onFrame: async () => { await faceMesh.send({image: videoElement}); },
-                width: 640, height: 480
-            });
-            camera.start();
-        }
-    </script>
-</body>
-</html>
+    }
+</script>
