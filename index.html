@@ -1,41 +1,64 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>KidsChat AI Lab</title>
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+    <title>KidsChat AI - Face Sync</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@google/model-viewer"></script>
     <style>
-        body { font-family: sans-serif; text-align: center; background: #f0f8ff; }
-        model-viewer { width: 100%; height: 500px; background-color: #ffffff; }
-        #controls { padding: 20px; }
+        body { margin: 0; background: #121212; color: white; text-align: center; font-family: sans-serif; }
+        model-viewer { width: 100vw; height: 80vh; }
+        #overlay { position: fixed; bottom: 20px; width: 100%; }
+        button { padding: 15px 30px; font-size: 18px; border-radius: 50px; border: none; background: #007bff; color: white; cursor: pointer; }
     </style>
 </head>
 <body>
 
-    <h1>Avatar AI Testing Ground</h1>
-    <div id="status">✅ AI Engine Ready</div>
+    <h1>Kid-Avatar AI Sync</h1>
+    
+    <model-viewer id="avatar" src="lopoly_ryu.glb" shadow-intensity="1" autoplay></model-viewer>
 
-    <model-viewer id="avatar" src="lopoly_ryu.glb" shadow-intensity="1" camera-controls touch-action="pan-y" autoplay>
-    </model-viewer>
-
-    <div id="controls">
-        <p>If you see the character above, our 3D engine is working!</p>
-        <button onclick="startCamera()">Step 6: Test Camera Connection</button>
+    <div id="overlay">
+        <button id="start-btn" onclick="activateAI()">Start Face Sync</button>
+        <p id="status">Status: Waiting for AI...</p>
     </div>
 
-    <video id="webcam" style="display:none;" autoplay></video>
+    <video id="webcam" style="display:none;" autoplay playsinline></video>
 
     <script>
-        async function startCamera() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                document.getElementById('webcam').srcObject = stream;
-                alert("Camera Connected! The AI can now 'see' you.");
-                document.getElementById('status').innerText = "🚀 Camera Active - Ready for Face Mapping";
-            } catch (err) {
-                alert("Please allow camera access to test the AI.");
+        const modelViewer = document.querySelector('#avatar');
+        const video = document.getElementById('webcam');
+        const status = document.getElementById('status');
+
+        async function activateAI() {
+            status.innerText = "Connecting Camera...";
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+
+            const faceMesh = new FaceMesh({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`});
+            
+            faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.5 });
+            faceMesh.onResults(onResults);
+
+            const camera = new Camera(video, {
+                onFrame: async () => { await faceMesh.send({image: video}); },
+                width: 640, height: 480
+            });
+            camera.start();
+            status.innerText = "🚀 AI Sync Active! Move your head.";
+        }
+
+        function onResults(results) {
+            if (results.multiFaceLandmarks && results.multiFaceLandmarks[0]) {
+                const landmarks = results.multiFaceLandmarks[0];
+                // This tracks the "Nose" point to rotate the avatar
+                const nose = landmarks[4]; 
+                const xAngle = (nose.y - 0.5) * 100; // Vertical tilt
+                const yAngle = (nose.x - 0.5) * -100; // Horizontal turn
+                
+                modelViewer.cameraOrbit = `${yAngle}deg ${xAngle + 75}deg auto`;
             }
         }
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 </body>
 </html>
