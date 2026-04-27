@@ -1,46 +1,59 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>KidsChat AI - Secure & Safe</title>
+    <title>KidsChat - World Class Edition</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
     <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
     
     <style>
-        body { margin: 0; background: #f0f2f5; color: #333; text-align: center; font-family: 'Helvetica Neue', sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        model-viewer { width: 100%; height: 40vh; background: #fff; border-bottom: 2px solid #ddd; transition: all 0.5s ease; }
+        body { margin: 0; background: #f0f2f5; color: #333; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        
+        /* Sponsored Header */
+        #ad-banner { background: #fff9c4; padding: 5px; font-size: 0.7rem; border-bottom: 1px solid #fbc02d; color: #555; font-weight: bold; }
+
+        /* Avatar Studio View */
+        model-viewer { width: 100%; height: 35vh; background: linear-gradient(#ffffff, #e3f2fd); }
+        
+        /* Chat Area */
         #chat-box { flex-grow: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; background: #e5ddd5; }
-        .message { padding: 10px 15px; border-radius: 15px; max-width: 70%; font-size: 0.9rem; text-align: left; }
-        .sent { align-self: flex-end; background: #dcf8c6; border: 1px solid #c7e5ae; }
-        .received { align-self: flex-start; background: white; border: 1px solid #ddd; }
-        .warning { align-self: center; background: #fff3cd; color: #856404; border: 1px solid #ffeeba; font-size: 0.8rem; border-radius: 5px; padding: 5px 10px; }
-        .controls { padding: 15px; background: white; border-top: 1px solid #ddd; display: flex; flex-direction: column; gap: 10px; }
-        .input-row { display: flex; gap: 10px; }
+        .message { padding: 10px 15px; border-radius: 15px; max-width: 70%; font-size: 0.9rem; }
+        .sent { align-self: flex-end; background: #dcf8c6; }
+        .received { align-self: flex-start; background: white; }
+        .ad-message { align-self: center; background: #e3f2fd; border: 1px dashed #2196f3; font-size: 0.8rem; border-radius: 10px; padding: 8px; color: #1565c0; }
+
+        /* Controls */
+        .controls { padding: 15px; background: white; border-top: 1px solid #ddd; }
+        .input-row { display: flex; gap: 10px; margin-bottom: 10px; }
         input { flex-grow: 1; padding: 12px; border-radius: 25px; border: 1px solid #ddd; outline: none; }
-        button { padding: 10px 20px; border-radius: 20px; border: none; font-weight: bold; cursor: pointer; }
-        .btn-send { background: #007bff; color: white; }
+        .btn-group { display: flex; justify-content: space-around; gap: 5px; }
+        button { padding: 8px 15px; border-radius: 20px; border: none; font-weight: bold; cursor: pointer; font-size: 0.75rem; }
+        .btn-main { background: #007bff; color: white; }
+        .btn-sec { background: #6c757d; color: white; }
         #input_video { display: none; }
-        .bounce { animation: bounce 0.5s ease; }
-        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-20px); } }
     </style>
 </head>
 <body>
 
+    <div id="ad-banner">✨ Sponsored by LEGO: Build Your World! ✨</div>
+
     <model-viewer id="avatar" src="lopoly_ryu.glb" shadow-intensity="1" autoplay></model-viewer>
 
     <div id="chat-box">
-        <div class="message received">👋 I'm your safe AI buddy! Type something nice.</div>
+        <div class="message received">Hi! I'm your AI Avatar. Let's chat safely!</div>
+        <div class="ad-message">📢 AD: Check out the new space-themed stickers!</div>
     </div>
 
     <div class="controls">
-        <div id="status" style="font-size: 0.7rem; color: #666;">Safety Mode: ON</div>
         <div class="input-row">
-            <input type="text" id="msg-input" placeholder="Say something...">
-            <button class="btn-send" onclick="sendMessage()">Send</button>
+            <input type="text" id="msg-input" placeholder="Type a message...">
+            <button class="btn-main" onclick="sendMessage()">Send</button>
         </div>
-        <div style="display:flex; justify-content:center; gap:10px;">
-            <button style="background:#28a745; color:white; font-size:0.8rem;" onclick="startApp()">🚀 Start Camera</button>
-            <button style="background:#dc3545; color:white; font-size:0.8rem;" onclick="stopApp()">🔒 Stop Camera</button>
+        
+        <div class="btn-group">
+            <button class="btn-sec" onclick="startApp()">📹 Sync Face</button>
+            <button class="btn-sec" onclick="stopApp()">🔒 Stop</button>
+            <button style="background:#673ab7; color:white;" onclick="toggleCostume()">🎭 New Look</button>
         </div>
     </div>
 
@@ -49,78 +62,56 @@
     <script>
         const modelViewer = document.querySelector('#avatar');
         const videoElement = document.getElementById('input_video');
-        const statusText = document.getElementById('status');
         const chatBox = document.getElementById('chat-box');
         const msgInput = document.getElementById('msg-input');
-        
-        // --- SAFETY LIST (Examples of blocked words) ---
-        const forbiddenWords = ["badword1", "stupid", "hate", "ugly", "shut up"];
+        const forbiddenWords = ["badword", "stupid", "hate"];
 
         function sendMessage() {
-            const originalText = msgInput.value;
-            const cleanText = originalText.toLowerCase().trim();
-            
-            if (cleanText === "") return;
+            const text = msgInput.value;
+            if (text.trim() === "") return;
 
-            // 1. CHECK SAFETY FILTER
-            const isUnsafe = forbiddenWords.some(word => cleanText.includes(word));
-
-            if (isUnsafe) {
-                // Block message and show warning
-                const warnDiv = document.createElement('div');
-                warnDiv.className = "warning";
-                warnDiv.innerText = "⚠️ Oops! Let's use kind words only.";
-                chatBox.appendChild(warnDiv);
-                msgInput.value = "";
-                return; // Stop the message from sending
+            if (forbiddenWords.some(w => text.toLowerCase().includes(w))) {
+                alert("Please use kind words!");
+                return;
             }
 
-            // 2. PROCEED IF SAFE
             const msgDiv = document.createElement('div');
             msgDiv.className = "message sent";
-            msgDiv.innerText = originalText;
+            msgDiv.innerText = text;
             chatBox.appendChild(msgDiv);
-
-            // Trigger Animation Logic
-            if (cleanText.includes("happy") || cleanText.includes("lol")) triggerReaction("happy");
-            if (cleanText.includes("wow")) triggerReaction("wow");
-
+            
             msgInput.value = "";
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
-        function triggerReaction(type) {
-            if (type === "happy") {
-                modelViewer.classList.add('bounce');
-                setTimeout(() => modelViewer.classList.remove('bounce'), 500);
-            } else if (type === "wow") {
-                modelViewer.cameraOrbit = "45deg 55deg 2m";
-                setTimeout(() => modelViewer.cameraOrbit = "0deg 75deg auto", 1500);
-            }
+        // Feature: Change Avatar Look
+        let lookIndex = 0;
+        function toggleCostume() {
+            const colors = ["#ffffff", "#ffccbc", "#c8e6c9", "#e1f5fe"];
+            lookIndex = (lookIndex + 1) % colors.length;
+            modelViewer.style.backgroundColor = colors[lookIndex];
+            alert("Avatar Theme Changed!");
         }
 
         const faceMesh = new FaceMesh({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`});
-        faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.5 });
         faceMesh.onResults((results) => {
-            if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) return;
+            if (!results.multiFaceLandmarks || !results.multiFaceLandmarks[0]) return;
             const nose = results.multiFaceLandmarks[0][4];
             modelViewer.cameraOrbit = `${(nose.x - 0.5) * -90}deg ${(nose.y - 0.5) * 60 + 75}deg auto`;
         });
 
         async function startApp() {
-            cameraInstance = new Camera(videoElement, {
+            const camera = new Camera(videoElement, {
                 onFrame: async () => { await faceMesh.send({image: videoElement}); },
                 width: 640, height: 480
             });
-            await cameraInstance.start();
-            statusText.innerText = "Safety Mode: ✨ AI Sync Active";
+            camera.start();
         }
 
         function stopApp() {
-            if (window.cameraInstance) {
-                cameraInstance.stop();
-                statusText.innerText = "Safety Mode: 🔒 Camera Off";
-            }
+            const stream = videoElement.srcObject;
+            if (stream) stream.getTracks().forEach(t => t.stop());
+            videoElement.srcObject = null;
         }
     </script>
 </body>
