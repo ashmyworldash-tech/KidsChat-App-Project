@@ -1,151 +1,129 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>KidsChat AI - Smart Companion</title>
+    <title>KidsChat - Funny AI Popups</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
     <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
     
     <style>
-        body { margin: 0; background: #f0f2f5; color: #333; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        #ad-banner { background: #fff9c4; padding: 5px; font-size: 0.7rem; border-bottom: 1px solid #fbc02d; color: #555; text-align: center; }
-        model-viewer { width: 100%; height: 35vh; background: linear-gradient(#ffffff, #e3f2fd); transition: all 0.5s ease; }
-        #chat-box { flex-grow: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; background: #e5ddd5; }
-        .message { padding: 10px 15px; border-radius: 15px; max-width: 70%; font-size: 0.9rem; position: relative; line-height: 1.4; }
-        .sent { align-self: flex-end; background: #dcf8c6; border: 1px solid #c7e5ae; }
-        .received { align-self: flex-start; background: white; border: 1px solid #ddd; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        .typing { font-style: italic; color: #888; font-size: 0.8rem; }
+        body { margin: 0; background: #f0f2f5; font-family: 'Comic Sans MS', sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        
+        /* The Main Avatar View */
+        model-viewer#avatar { width: 100%; height: 30vh; background: white; }
+
+        /* The Chat Area */
+        #chat-box { flex-grow: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; background: #e5ddd5; position: relative; }
+        .message { padding: 10px 15px; border-radius: 15px; max-width: 70%; z-index: 1; }
+        .sent { align-self: flex-end; background: #dcf8c6; }
+        .received { align-self: flex-start; background: white; }
+
+        /* THE FUNNY POPUP STAGE */
+        #popup-stage {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 200px; height: 200px; pointer-events: none; z-index: 10; display: none;
+        }
+
+        /* Animation Styles */
+        .funny-spin { animation: spinMe 1s ease-in-out; display: block !important; }
+        .funny-grow { animation: growMe 1s ease-in-out; display: block !important; }
+
+        @keyframes spinMe {
+            0% { transform: translate(-50%, -50%) scale(0) rotate(0deg); opacity: 0; }
+            50% { transform: translate(-50%, -50%) scale(1.5) rotate(360deg); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(0) rotate(720deg); opacity: 0; }
+        }
+
+        @keyframes growMe {
+            0% { transform: translate(-50%, -100%) scale(0); opacity: 0; }
+            50% { transform: translate(-50%, -50%) scale(2.5); opacity: 1; }
+            100% { transform: translate(-50%, 0%) scale(0); opacity: 0; }
+        }
+
         .controls { padding: 15px; background: white; border-top: 1px solid #ddd; }
-        .input-row { display: flex; gap: 10px; margin-bottom: 10px; }
-        input { flex-grow: 1; padding: 12px; border-radius: 25px; border: 1px solid #ddd; outline: none; }
-        .btn-group { display: flex; justify-content: space-around; gap: 5px; }
-        button { padding: 8px 15px; border-radius: 20px; border: none; font-weight: bold; cursor: pointer; }
-        .btn-main { background: #007bff; color: white; }
+        .input-row { display: flex; gap: 10px; }
+        input { flex-grow: 1; padding: 12px; border-radius: 25px; border: 1px solid #ddd; }
+        button { padding: 10px 20px; border-radius: 20px; border: none; font-weight: bold; cursor: pointer; }
         #input_video { display: none; }
-        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-20px); } }
-        .bounce { animation: bounce 0.5s ease; }
     </style>
 </head>
 <body>
 
-    <div id="ad-banner">✨ AI Companion Mode: Enabled ✨</div>
     <model-viewer id="avatar" src="lopoly_ryu.glb" shadow-intensity="1" autoplay></model-viewer>
 
     <div id="chat-box">
-        <div class="message received">Hello! I'm your AI buddy. Type "help", "joke", or "tell me a secret" to see what I can do!</div>
+        <div id="popup-stage">
+            <model-viewer src="lopoly_ryu.glb" autoplay style="width:100%; height:100%"></model-viewer>
+        </div>
+        <div class="message received">Type "SPIN" or "BIG" to see a funny popup!</div>
     </div>
 
     <div class="controls">
-        <div id="status" style="font-size: 0.7rem; text-align:center; color: #666; margin-bottom:5px;">AI Brain: Active</div>
         <div class="input-row">
-            <input type="text" id="msg-input" placeholder="Chat with me...">
-            <button class="btn-main" onclick="sendMessage()">Send</button>
+            <input type="text" id="msg-input" placeholder="Type funny words...">
+            <button style="background:#007bff; color:white;" onclick="sendMessage()">Send</button>
         </div>
-        <div class="btn-group">
+        <div style="display:flex; justify-content:center; gap:10px; margin-top:10px;">
             <button style="background:#28a745; color:white;" onclick="startApp()">📹 Sync</button>
             <button style="background:#dc3545; color:white;" onclick="stopApp()">🔒 Stop</button>
-            <button style="background:#673ab7; color:white;" onclick="toggleCostume()">🎭 Style</button>
         </div>
     </div>
 
     <video id="input_video" playsinline></video>
 
     <script>
-        const modelViewer = document.querySelector('#avatar');
-        const videoElement = document.getElementById('input_video');
         const chatBox = document.getElementById('chat-box');
+        const popupStage = document.getElementById('popup-stage');
         const msgInput = document.getElementById('msg-input');
-        const statusText = document.getElementById('status');
-        window.activeCamera = null;
+        const videoElement = document.getElementById('input_video');
 
-        // --- THE AI BRAIN (Response Database) ---
-        const aiResponses = {
-            "hello": "Hi there, friend! Ready to play?",
-            "hi": "Hey! What's on your mind today?",
-            "joke": "Why did the robot go on vacation? Because he needed to recharge his batteries! 😂",
-            "secret": "I'll tell you a secret... I'm actually made of code and stardust! 🌟",
-            "help": "You can ask me for a joke, a secret, or just say hi!",
-            "game": "I love games! My favorite is 'Follow the Leader'. Move your head and I'll follow!",
-            "bye": "Goodbye! See you next time!",
-            "default": "That's interesting! Tell me more about that."
-        };
+        function sendMessage() {
+            const text = msgInput.value.toUpperCase();
+            if (text.trim() === "") return;
 
-        function addMessage(text, type) {
+            // 1. Add Message
             const msgDiv = document.createElement('div');
-            msgDiv.className = `message ${type}`;
-            msgDiv.innerText = text;
+            msgDiv.className = "message sent";
+            msgDiv.innerText = msgInput.value;
             chatBox.appendChild(msgDiv);
+
+            // 2. CHECK FOR FUNNY KEYWORDS
+            if (text.includes("SPIN")) {
+                showPopup("funny-spin");
+            } else if (text.includes("BIG")) {
+                showPopup("funny-grow");
+            }
+
+            msgInput.value = "";
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
-        function sendMessage() {
-            const userText = msgInput.value.toLowerCase().trim();
-            if (userText === "") return;
-
-            // 1. Show User Message
-            addMessage(msgInput.value, "sent");
-            msgInput.value = "";
-
-            // 2. AI "Thinking" Pause
-            setTimeout(() => {
-                let response = aiResponses["default"];
-                
-                // Search for keywords
-                for (let key in aiResponses) {
-                    if (userText.includes(key)) {
-                        response = aiResponses[key];
-                        triggerAIAction(key);
-                        break;
-                    }
-                }
-                
-                addMessage(response, "received");
-            }, 800);
+        function showPopup(animationClass) {
+            popupStage.className = animationClass;
+            // Remove the class after 1 second so it can be played again
+            setTimeout(() => { popupStage.className = ""; }, 1000);
         }
 
-        function triggerAIAction(key) {
-            if (key === "joke" || key === "hello") {
-                modelViewer.classList.add('bounce');
-                setTimeout(() => modelViewer.classList.remove('bounce'), 500);
-            }
-            if (key === "secret") {
-                modelViewer.cameraOrbit = "45deg 55deg 2m";
-                setTimeout(() => modelViewer.cameraOrbit = "0deg 75deg auto", 2000);
-            }
-        }
-
-        // --- CAMERA LOGIC ---
+        // --- Standard Sync Logic ---
         const faceMesh = new FaceMesh({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`});
         faceMesh.onResults((results) => {
             if (!results.multiFaceLandmarks || !results.multiFaceLandmarks[0]) return;
             const nose = results.multiFaceLandmarks[0][4];
-            modelViewer.cameraOrbit = `${(nose.x - 0.5) * -90}deg ${(nose.y - 0.5) * 60 + 75}deg auto`;
+            document.getElementById('avatar').cameraOrbit = `${(nose.x - 0.5) * -90}deg ${(nose.y - 0.5) * 60 + 75}deg auto`;
         });
 
         async function startApp() {
-            if (window.activeCamera) await stopApp();
-            window.activeCamera = new Camera(videoElement, {
+            const camera = new Camera(videoElement, {
                 onFrame: async () => { await faceMesh.send({image: videoElement}); },
                 width: 640, height: 480
             });
-            await window.activeCamera.start();
-            statusText.innerText = "AI Brain: ✨ Syncing Face";
+            camera.start();
         }
 
-        async function stopApp() {
-            if (window.activeCamera) {
-                await window.activeCamera.stop();
-                const stream = videoElement.srcObject;
-                if (stream) stream.getTracks().forEach(t => t.stop());
-                videoElement.srcObject = null;
-                window.activeCamera = null;
-                statusText.innerText = "AI Brain: 🔒 Privacy Active";
-            }
-        }
-
-        function toggleCostume() {
-            const colors = ["#ffffff", "#ffccbc", "#c8e6c9", "#e1f5fe"];
-            modelViewer.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        function stopApp() {
+            const stream = videoElement.srcObject;
+            if (stream) stream.getTracks().forEach(t => t.stop());
+            videoElement.srcObject = null;
         }
     </script>
 </body>
