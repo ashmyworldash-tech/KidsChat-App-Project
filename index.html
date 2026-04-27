@@ -1,159 +1,128 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>KidsChat - AI Stunts</title>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
+    <title>KidsChat AI - Funny Popups</title>
     <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
     
     <style>
-        body { margin: 0; background: #f0f2f5; font-family: 'Comic Sans MS', sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        #user-bar { background: #075e54; color: white; padding: 10px; display: flex; justify-content: space-between; align-items: center; }
-        .user-tag { background: #128c7e; padding: 4px 10px; border-radius: 10px; font-weight: bold; }
+        body { margin: 0; background: #ece5dd; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         
-        /* The main face-sync puppet */
-        model-viewer#main-sync-avatar { width: 100%; height: 20vh; background: #fafafa; border-bottom: 2px solid #ddd; }
+        /* App Header */
+        #header { background: #075e54; color: white; padding: 15px; font-weight: bold; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .user-indicator { background: #128c7e; padding: 5px 12px; border-radius: 15px; font-size: 0.8rem; }
 
-        /* The Chat Area */
-        #chat-box { flex-grow: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 15px; background: #e5ddd5; }
-        .msg-container { display: flex; flex-direction: column; position: relative; }
-        .message { padding: 10px 15px; border-radius: 15px; max-width: 75%; position: relative; z-index: 1; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
-        .user-name { font-size: 0.7rem; font-weight: bold; margin-bottom: 2px; color: #555; }
-        .sent { align-self: flex-end; background: #dcf8c6; }
-        .received { align-self: flex-start; background: white; }
+        /* Full Screen Chat Area */
+        #chat-box { flex-grow: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 20px; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); /* Classic WhatsApp Background */ }
+        
+        /* Message Containers */
+        .msg-row { display: flex; flex-direction: column; position: relative; max-width: 80%; }
+        .sent-row { align-self: flex-end; }
+        .received-row { align-self: flex-start; }
 
-        /* THE ANIMATED POPUP STAGE */
-        .stunt-popup-container {
-            width: 120px; height: 120px; pointer-events: none;
-            position: absolute; top: -60px; display: none; z-index: 10;
+        .bubble { padding: 10px 15px; border-radius: 10px; position: relative; z-index: 2; font-size: 1rem; box-shadow: 0 1px 1px rgba(0,0,0,0.1); }
+        .sent-row .bubble { background: #dcf8c6; border-top-right-radius: 0; }
+        .received-row .bubble { background: #ffffff; border-top-left-radius: 0; }
+        
+        .name-label { font-size: 0.75rem; font-weight: bold; margin-bottom: 3px; color: #075e54; }
+
+        /* THE FUNNY POPUP AVATAR */
+        .popup-container {
+            position: absolute;
+            width: 150px; height: 150px;
+            top: -100px;
+            pointer-events: none;
+            display: none;
+            z-index: 10;
         }
-        .sent .stunt-popup-container { right: 0; }
-        .received .stunt-popup-container { left: 0; }
+        .sent-row .popup-container { right: -20px; }
+        .received-row .popup-container { left: -20px; }
 
-        /* Funny Popup Effect */
-        .show-stunt { display: block !important; animation: popupEffect 2.5s ease forwards; }
+        /* Funny Animations */
+        .pop-active { display: block !important; animation: funnyJump 2s ease-in-out forwards; }
 
-        @keyframes popupEffect {
-            0% { transform: scale(0); opacity: 0; }
-            15% { transform: scale(1.3); opacity: 1; }
-            85% { transform: scale(1); opacity: 1; }
-            100% { transform: scale(0); opacity: 0; }
+        @keyframes funnyJump {
+            0% { transform: scale(0) translateY(50px) rotate(0deg); opacity: 0; }
+            20% { transform: scale(1.2) translateY(-20px) rotate(10deg); opacity: 1; }
+            40% { transform: scale(1) translateY(0) rotate(-10deg); opacity: 1; }
+            80% { transform: scale(1) translateY(0); opacity: 1; }
+            100% { transform: scale(0) translateY(20px); opacity: 0; }
         }
 
-        .controls { padding: 15px; background: white; border-top: 1px solid #ddd; }
-        .input-row { display: flex; gap: 10px; margin-bottom: 10px; }
+        /* Controls */
+        .input-area { background: #f0f0f0; padding: 10px; display: flex; gap: 10px; align-items: center; }
         input { flex-grow: 1; padding: 12px; border-radius: 25px; border: 1px solid #ddd; outline: none; }
-        button { padding: 8px 15px; border-radius: 20px; border: none; font-weight: bold; cursor: pointer; }
-        #input_video { display: none; }
+        .btn-send { background: #075e54; color: white; border: none; padding: 10px 20px; border-radius: 20px; font-weight: bold; cursor: pointer; }
+        .btn-switch { background: #128c7e; color: white; border: none; padding: 10px 15px; border-radius: 20px; cursor: pointer; font-size: 0.8rem; }
     </style>
 </head>
 <body>
 
-    <div id="user-bar">
-        <span>AI Stunt Group Chat</span>
-        <div>Typing as: <span class="user-tag" id="user-name-label">Me</span></div>
+    <div id="header">
+        <span>Kids AI Group</span>
+        <button class="btn-switch" onclick="switchUser()">🔄 Switch: <span id="user-label">Me</span></button>
     </div>
-
-    <model-viewer id="main-sync-avatar" src="lopoly_ryu.glb" shadow-intensity="1" autoplay></model-viewer>
 
     <div id="chat-box">
-        <div class="msg-container received">
-            <div class="user-name">System</div>
-            <div class="message">Type 'HI' or 'DANCE' to see me do a funny stunt!</div>
+        <div class="msg-row received-row">
+            <div class="name-label">AI Buddy</div>
+            <div class="bubble">Try typing "JUMP", "HELLO", or "HAPPY" to see me pop up!</div>
         </div>
     </div>
 
-    <div class="controls">
-        <div class="input-row">
-            <input type="text" id="msg-input" placeholder="Try 'HI' or 'DANCE'...">
-            <button style="background:#007bff; color:white;" onclick="sendMessage()">Send</button>
-        </div>
-        <div style="display:flex; justify-content:center; gap:10px;">
-            <button style="background:#6c757d; color:white;" onclick="switchUser()">🔄 Switch User</button>
-            <button style="background:#28a745; color:white;" onclick="startApp()">📹 Sync Face</button>
-            <button style="background:#dc3545; color:white;" onclick="stopApp()">🔒 Stop</button>
-        </div>
+    <div class="input-area">
+        <input type="text" id="msg-input" placeholder="Say something funny...">
+        <button class="btn-send" onclick="sendMessage()">Send</button>
     </div>
-
-    <video id="input_video" playsinline></video>
 
     <script>
         const chatBox = document.getElementById('chat-box');
         const msgInput = document.getElementById('msg-input');
-        const videoElement = document.getElementById('input_video');
         let currentUser = "Me";
 
         function switchUser() {
             currentUser = (currentUser === "Me") ? "Friend" : "Me";
-            document.getElementById('user-name-label').innerText = currentUser;
+            document.getElementById('user-label').innerText = currentUser;
         }
 
         function sendMessage() {
-            const text = msgInput.value.toUpperCase();
-            if (text.trim() === "") return;
+            const text = msgInput.value.trim();
+            if (text === "") return;
 
-            // 1. Create Message Container
-            const container = document.createElement('div');
-            container.className = `msg-container ${currentUser === "Me" ? 'sent' : 'received'}`;
+            const isMe = (currentUser === "Me");
             
-            // 2. Add Name Label
-            const nameLabel = document.createElement('div');
-            nameLabel.className = "user-name"; nameLabel.innerText = currentUser;
+            // 1. Create Row
+            const row = document.createElement('div');
+            row.className = `msg-row ${isMe ? 'sent-row' : 'received-row'}`;
 
-            // 3. Add Message Bubble
-            const msgDiv = document.createElement('div');
-            msgDiv.className = "message"; msgDiv.innerText = msgInput.value;
+            // 2. Add Name & Bubble
+            row.innerHTML = `
+                <div class="name-label">${currentUser}</div>
+                <div class="bubble">${text}</div>
+                <div class="popup-container">
+                    <model-viewer src="lopoly_ryu.glb" autoplay shadow-intensity="1" style="width:100%; height:100%"></model-viewer>
+                </div>
+            `;
 
-            // 4. THE STUNT POPUP (Hidden by default)
-            const popupContainer = document.createElement('div');
-            popupContainer.className = "stunt-popup-container";
-            
-            // This embedded model-viewer is the one that performs the stunt
-            popupContainer.innerHTML = `
-                <model-viewer id="popup-avatar-internal" 
-                              src="lopoly_ryu.glb" 
-                              autoplay 
-                              animation-crossfade-duration="0.3"
-                              style="width:100%; height:100%">
-                </model-viewer>`;
+            chatBox.appendChild(row);
 
-            // 5. Assemble
-            container.appendChild(nameLabel); container.appendChild(msgDiv);
-            container.appendChild(popupContainer); chatBox.appendChild(container);
+            // 3. LOGIC: Check for keywords to trigger funny popup
+            const upperText = text.toUpperCase();
+            const popup = row.querySelector('.popup-container');
+            const mv = row.querySelector('model-viewer');
 
-            // 6. TRIGGER THE FUNNY STUNT
-            const stuntAvatar = popupContainer.querySelector('#popup-avatar-internal');
-            
-            if (text.includes("HI")) {
-                stuntAvatar.animationName = "wave"; // Command 1: Wave
-                popupContainer.classList.add('show-stunt');
-            } else if (text.includes("DANCE")) {
-                stuntAvatar.animationName = "dance"; // Command 2: Dance
-                popupContainer.classList.add('show-stunt');
+            if (upperText.includes("JUMP") || upperText.includes("HAPPY") || upperText.includes("HELLO")) {
+                // Determine which internal 3D animation to play
+                if (upperText.includes("JUMP")) mv.animationName = "jump";
+                if (upperText.includes("HELLO")) mv.animationName = "wave";
+                
+                // Show the funny popup
+                setTimeout(() => {
+                    popup.classList.add('pop-active');
+                }, 200);
             }
 
             msgInput.value = "";
             chatBox.scrollTop = chatBox.scrollHeight;
-        }
-
-        // --- Standard Sync Logic ---
-        const faceMesh = new FaceMesh({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`});
-        faceMesh.onResults((results) => {
-            if (!results.multiFaceLandmarks || !results.multiFaceLandmarks[0]) return;
-            const nose = results.multiFaceLandmarks[0][4];
-            document.getElementById('main-sync-avatar').cameraOrbit = `${(nose.x - 0.5) * -90}deg ${(nose.y - 0.5) * 60 + 75}deg auto`;
-        });
-        async function startApp() {
-            const camera = new Camera(videoElement, {
-                onFrame: async () => { await faceMesh.send({image: videoElement}); },
-                width: 640, height: 480
-            });
-            camera.start();
-        }
-        function stopApp() {
-            const stream = videoElement.srcObject;
-            if (stream) stream.getTracks().forEach(t => t.stop());
-            videoElement.srcObject = null;
         }
     </script>
 </body>
